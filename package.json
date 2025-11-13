@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:server": "nodemon server/server.ts",
+    "dev:migrate": "node ./scripts/devMigrate.js",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"

@@ -1,16 +1,9 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
-
-interface AuthContextType {
-  user: string | null;
-  login: (username: string, password: string) => Promise<boolean>;
-  logout: () => void;
-  register: (username: string, password: string) => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+import { ReactNode, useState } from 'react';
+import { AuthContext } from './AuthContext';
+import type { AuthUser } from './AuthContext';
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<string | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
 
   const register = async (username: string, password: string) => {
     const response = await fetch('http://localhost:3001/register', {
@@ -22,7 +15,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
 
     if (!response.ok) {
-      throw new Error('Registration failed');
+      const error = await response.json().catch(() => null);
+      throw new Error(error?.error ?? 'Registration failed');
     }
   };
 
@@ -37,7 +31,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     if (response.ok) {
       const data = await response.json();
-      setUser(data.user.username);
+      setUser(data.user);
       return true;
     }
     return false;
@@ -52,12 +46,4 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       {children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
 };

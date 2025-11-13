@@ -1,7 +1,4 @@
-
-import type { Knex } from 'knex';
-
-const config: { [key: string]: Knex.Config } = {
+const config = {
   development: {
     client: 'sqlite3',
     connection: {
@@ -11,6 +8,11 @@ const config: { [key: string]: Knex.Config } = {
       directory: './db/migrations',
     },
     useNullAsDefault: true,
+    pool: {
+      afterCreate: (conn, done) => {
+        conn.run('PRAGMA foreign_keys = ON', (err) => done(err, conn));
+      },
+    },
   },
 };
 

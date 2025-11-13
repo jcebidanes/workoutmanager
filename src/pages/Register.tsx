@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 
 const Register: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -15,7 +15,8 @@ const Register: React.FC = () => {
         await register(username, password);
         navigate('/login');
       } catch (error) {
-        alert('Registration failed. Please try again.');
+        const message = error instanceof Error ? error.message : 'Registration failed. Please try again.';
+        alert(message);
       }
     } else {
       alert('Please enter both username and password.');
