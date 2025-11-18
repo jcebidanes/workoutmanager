@@ -45,6 +45,11 @@
   gap: 1.25rem;
 }
 
+.auth__language {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .auth__card-header h2 {
   margin: 0;
   font-size: 1.5rem;

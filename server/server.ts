@@ -123,6 +123,10 @@ interface ClientResponse {
   workouts: ClientWorkoutResponse[];
 }
 
+type SupportedLanguage = 'pt' | 'en';
+const DEFAULT_LANGUAGE: SupportedLanguage = 'en';
+const isSupportedLanguage = (value: unknown): value is SupportedLanguage => value === 'pt' || value === 'en';
+
 const requireUser = (req: Request, res: Response, next: NextFunction) => {
   const userIdHeader = req.header('x-user-id');
   const parsedId = userIdHeader ? Number(userIdHeader) : NaN;
@@ -315,10 +319,12 @@ const verifyClientWorkoutOwnership = async (
 };
 
 app.post('/register', async (req, res) => {
-  const { username, password } = req.body;
+  const { username, password, language } = req.body;
   if (!username || !password) {
     return res.status(400).json({ error: 'Username and password are required' });
   }
+
+  const normalizedLanguage: SupportedLanguage = isSupportedLanguage(language) ? language : DEFAULT_LANGUAGE;
 
   try {
     const existingUser = await knex('users').where({ username }).first();
@@ -326,10 +332,10 @@ app.post('/register', async (req, res) => {
       return res.status(409).json({ error: 'Username already exists' });
     }
     const hashedPassword = await hashPassword(password);
-    const [userId] = await knex('users').insert({ username, password: hashedPassword });
+    const [userId] = await knex('users').insert({ username, password: hashedPassword, language: normalizedLanguage });
     return res.status(201).json({
       message: 'User registered successfully',
-      user: { id: userId, username },
+      user: { id: userId, username, language: normalizedLanguage },
     });
   } catch (error) {
     console.error('Registration failed', error);
@@ -348,13 +354,26 @@ app.post('/login', async (req, res) => {
     if (user && await comparePassword(password, user.password)) {
       return res.json({
         message: 'Login successful',
-        user: { id: user.id, username: user.username },
+        user: { id: user.id, username: user.username, language: isSupportedLanguage(user.language) ? user.language : DEFAULT_LANGUAGE },
       });
     }
     return res.status(401).json({ error: 'Invalid credentials' });
   } catch (error) {
     console.error('Login failed', error);
     return res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+app.put('/users/preferences', requireUser, async (req, res) => {
+  const { language } = req.body;
+  const normalizedLanguage: SupportedLanguage = isSupportedLanguage(language) ? language : DEFAULT_LANGUAGE;
+
+  try {
+    await knex('users').where({ id: req.userId }).update({ language: normalizedLanguage });
+    return res.json({ language: normalizedLanguage });
+  } catch (error) {
+    console.error('Failed to update preferences', error);
+    return res.status(500).json({ error: 'Failed to update preferences' });
   }
 });
 

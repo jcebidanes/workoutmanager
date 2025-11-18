@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useI18n } from '../hooks/useI18n';
+import type { Language } from '../types/language';
 import '../styles/ux.css';
 import './Auth.css';
 
@@ -11,6 +13,7 @@ const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const { login, user } = useAuth();
   const navigate = useNavigate();
+  const { t, language, setLanguage } = useI18n();
 
   useEffect(() => {
     if (user) {
@@ -21,7 +24,7 @@ const Login: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username || !password) {
-      setError('Please enter both username and password.');
+      setError(t('auth.errors.missingFields'));
       return;
     }
     setError('');
@@ -31,10 +34,10 @@ const Login: React.FC = () => {
       if (success) {
         navigate('/dashboard');
       } else {
-        setError('Invalid username or password.');
+        setError(t('auth.errors.invalidCredentials'));
       }
     } catch {
-      setError('Unable to log in. Please try again.');
+      setError(t('auth.errors.generic'));
     } finally {
       setLoading(false);
     }
@@ -43,20 +46,32 @@ const Login: React.FC = () => {
   return (
     <main className="auth">
       <section className="auth__hero">
-        <p className="auth__eyebrow">Personal trainer OS</p>
-        <h1>Welcome back, coach</h1>
-        <p>Log in to plan workouts, assign templates, and keep every client progressing from one dashboard.</p>
+        <p className="auth__eyebrow">{t('auth.hero.tagline')}</p>
+        <h1>{t('auth.hero.loginTitle')}</h1>
+        <p>{t('auth.hero.loginBody')}</p>
       </section>
 
       <section className="auth__card">
         <div className="auth__card-header">
-          <h2>Sign in</h2>
-          <p>Use your trainer account to continue.</p>
+          <h2>{t('auth.login.title')}</h2>
+          <p>{t('auth.login.subtitle')}</p>
+        </div>
+        <div className="auth__language">
+          <label htmlFor="auth-language" className="sr-only">{t('auth.languageLabel')}</label>
+          <select
+            id="auth-language"
+            className="language-select"
+            value={language}
+            onChange={(event) => setLanguage(event.target.value as Language)}
+          >
+            <option value="pt">{t('auth.language.pt')}</option>
+            <option value="en">{t('auth.language.en')}</option>
+          </select>
         </div>
         {error && <p className="auth__error">{error}</p>}
         <form className="form" onSubmit={handleSubmit}>
           <div className="form-field">
-            <label htmlFor="username">Username</label>
+            <label htmlFor="username">{t('auth.fields.username')}</label>
             <input
               type="text"
               id="username"
@@ -66,7 +81,7 @@ const Login: React.FC = () => {
             />
           </div>
           <div className="form-field">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="password">{t('auth.fields.password')}</label>
             <input
               type="password"
               id="password"
@@ -77,14 +92,14 @@ const Login: React.FC = () => {
           </div>
           <div className="form__actions">
             <button type="submit" className="button button--primary" disabled={loading}>
-              {loading ? 'Signing in…' : 'Sign in'}
+              {loading ? t('auth.login.loading') : t('auth.login.submit')}
             </button>
           </div>
         </form>
         <p className="auth__switch">
-          New here?
+          {t('auth.login.switchPrefix')}
           {' '}
-          <Link to="/register">Create an account</Link>
+          <Link to="/register">{t('auth.login.switchLink')}</Link>
         </p>
       </section>
     </main>

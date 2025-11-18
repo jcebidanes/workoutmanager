@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useI18n } from '../hooks/useI18n';
+import type { Language } from '../types/language';
 import '../styles/ux.css';
 import './Auth.css';
 
@@ -11,6 +13,7 @@ const Register: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const { register, user } = useAuth();
   const navigate = useNavigate();
+  const { t, language, setLanguage } = useI18n();
 
   useEffect(() => {
     if (user) {
@@ -21,16 +24,16 @@ const Register: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username || !password) {
-      setError('Please enter both username and password.');
+      setError(t('auth.errors.missingFields'));
       return;
     }
     setError('');
     setLoading(true);
     try {
-      await register(username, password);
+      await register(username, password, language);
       navigate('/login');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Registration failed. Please try again.';
+      const message = err instanceof Error ? err.message : t('auth.errors.generic');
       setError(message);
     } finally {
       setLoading(false);
@@ -40,20 +43,32 @@ const Register: React.FC = () => {
   return (
     <main className="auth">
       <section className="auth__hero">
-        <p className="auth__eyebrow">Personal trainer OS</p>
-        <h1>Create your coaching hub</h1>
-        <p>Set up your account to craft templates, organize clients, and deliver personalized training programs with confidence.</p>
+        <p className="auth__eyebrow">{t('auth.hero.tagline')}</p>
+        <h1>{t('auth.hero.registerTitle')}</h1>
+        <p>{t('auth.hero.registerBody')}</p>
       </section>
 
       <section className="auth__card">
         <div className="auth__card-header">
-          <h2>Register</h2>
-          <p>Start building smarter training plans today.</p>
+          <h2>{t('auth.register.title')}</h2>
+          <p>{t('auth.register.subtitle')}</p>
+        </div>
+        <div className="auth__language">
+          <label htmlFor="auth-language" className="sr-only">{t('auth.languageLabel')}</label>
+          <select
+            id="auth-language"
+            className="language-select"
+            value={language}
+            onChange={(event) => setLanguage(event.target.value as Language)}
+          >
+            <option value="pt">{t('auth.language.pt')}</option>
+            <option value="en">{t('auth.language.en')}</option>
+          </select>
         </div>
         {error && <p className="auth__error">{error}</p>}
         <form className="form" onSubmit={handleSubmit}>
           <div className="form-field">
-            <label htmlFor="username">Username</label>
+            <label htmlFor="username">{t('auth.fields.username')}</label>
             <input
               type="text"
               id="username"
@@ -63,7 +78,7 @@ const Register: React.FC = () => {
             />
           </div>
           <div className="form-field">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="password">{t('auth.fields.password')}</label>
             <input
               type="password"
               id="password"
@@ -74,14 +89,14 @@ const Register: React.FC = () => {
           </div>
           <div className="form__actions">
             <button type="submit" className="button button--primary" disabled={loading}>
-              {loading ? 'Creating account…' : 'Create account'}
+              {loading ? t('auth.register.loading') : t('auth.register.submit')}
             </button>
           </div>
         </form>
         <p className="auth__switch">
-          Already have an account?
+          {t('auth.register.switchPrefix')}
           {' '}
-          <Link to="/login">Log in</Link>
+          <Link to="/login">{t('auth.register.switchLink')}</Link>
         </p>
       </section>
     </main>
