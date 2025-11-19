@@ -56,6 +56,10 @@ export interface AssignmentFormState {
   templateId: string;
 }
 
+export const WEEK_DAY_IDS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
+export type WeekDayId = typeof WEEK_DAY_IDS[number];
+export const UNSCHEDULED_VALUE = 'unscheduled';
+
 export interface ClientMessage {
   id: number;
   clientId: number;
