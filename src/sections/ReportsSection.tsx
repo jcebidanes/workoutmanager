@@ -13,21 +13,46 @@ const ReportsSection: React.FC<ReportsSectionProps> = ({ clients }) => {
 
   useEffect(() => {
     if (clients.length > 0) {
-      setSelectedClientId((prev) => {
-        if (prev && clients.some((client) => client.id === prev)) {
-          return prev;
-        }
-        return clients[0].id;
-      });
+      setSelectedClientId((prev) => (
+        prev && clients.some((client) => client.id === prev)
+          ? prev
+          : clients[0].id
+      ));
     } else {
       setSelectedClientId(null);
     }
   }, [clients]);
 
-  const totalWorkouts = useMemo(
-    () => clients.reduce((count, client) => count + client.workouts.length, 0),
-    [clients],
-  );
+  const aggregates = useMemo(() => {
+    const totalWorkouts = clients.reduce((count, client) => count + client.workouts.length, 0);
+    const totalExercises = clients.reduce(
+      (count, client) => count + client.workouts.reduce(
+        (workoutCount, workout) => workoutCount + workout.exercises.length,
+        0,
+      ),
+      0,
+    );
+    const perClient = clients.map((client) => {
+      const workoutCount = client.workouts.length;
+      const exerciseCount = client.workouts.reduce(
+        (workoutTotal, workout) => workoutTotal + workout.exercises.length,
+        0,
+      );
+      const lastWorkout = client.workouts[0];
+      return {
+        id: client.id,
+        name: client.name,
+        workoutCount,
+        exerciseCount,
+        lastWorkout: lastWorkout?.createdAt ?? null,
+      };
+    });
+    return {
+      totalWorkouts,
+      totalExercises,
+      perClient,
+    };
+  }, [clients]);
 
   if (clients.length === 0) {
     return (
@@ -50,16 +75,44 @@ const ReportsSection: React.FC<ReportsSectionProps> = ({ clients }) => {
         </div>
         <p className="panel__hint">{t('reports.page.subtitle')}</p>
       </div>
-      <div className="reports-grid">
-        <article>
+      <div className="summary-grid">
+        <article className="summary-card">
           <p>{t('reports.page.clientCount')}</p>
           <strong>{clients.length}</strong>
         </article>
-        <article>
+        <article className="summary-card">
           <p>{t('reports.page.workoutCount')}</p>
-          <strong>{totalWorkouts}</strong>
+          <strong>{aggregates.totalWorkouts}</strong>
+        </article>
+        <article className="summary-card">
+          <p>{t('reports.page.exerciseCount')}</p>
+          <strong>{aggregates.totalExercises}</strong>
         </article>
       </div>
+
+      <div className="reports-table-wrapper">
+        <table className="library-table">
+          <thead>
+            <tr>
+              <th>{t('reports.page.tableClient')}</th>
+              <th>{t('reports.page.tableWorkouts')}</th>
+              <th>{t('reports.page.tableExercises')}</th>
+              <th>{t('reports.page.tableLastWorkout')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {aggregates.perClient.map((client) => (
+              <tr key={client.id}>
+                <td>{client.name}</td>
+                <td>{client.workoutCount}</td>
+                <td>{client.exerciseCount}</td>
+                <td>{client.lastWorkout ? new Date(client.lastWorkout).toLocaleDateString() : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
       <div className="form-field">
         <label htmlFor="reports-client-select">{t('reports.page.clientLabel')}</label>
         <select

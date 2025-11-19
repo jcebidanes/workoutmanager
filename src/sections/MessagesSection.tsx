@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ClientRecord } from '../types/dashboard';
 import { useI18n } from '../hooks/useI18n';
 import ClientMessages from '../components/ClientMessages';
@@ -24,6 +24,19 @@ const MessagesSection: React.FC<MessagesSectionProps> = ({ clients }) => {
     }
   }, [clients]);
 
+  const summary = useMemo(() => {
+    const totalWorkouts = clients.reduce((count, client) => count + client.workouts.length, 0);
+    const selectedClient = clients.find((client) => client.id === selectedClientId);
+    const selectedWorkoutCount = selectedClient?.workouts.length ?? 0;
+
+    return {
+      totalClients: clients.length,
+      totalWorkouts,
+      selectedClient,
+      selectedWorkoutCount,
+    };
+  }, [clients, selectedClientId]);
+
   if (clients.length === 0) {
     return (
       <div className="section-panel">
@@ -45,6 +58,25 @@ const MessagesSection: React.FC<MessagesSectionProps> = ({ clients }) => {
         </div>
         <p className="panel__hint">{t('messages.page.subtitle')}</p>
       </div>
+
+      <div className="summary-grid">
+        <article className="summary-card">
+          <p>{t('messages.page.clientCount')}</p>
+          <strong>{summary.totalClients}</strong>
+        </article>
+        <article className="summary-card">
+          <p>{t('messages.page.workoutCount')}</p>
+          <strong>{summary.totalWorkouts}</strong>
+        </article>
+        {summary.selectedClient && (
+          <article className="summary-card">
+            <p>{t('messages.page.selectedClientWorkouts')}</p>
+            <strong>{summary.selectedWorkoutCount}</strong>
+            <small>{summary.selectedClient.name}</small>
+          </article>
+        )}
+      </div>
+
       <div className="form-field">
         <label htmlFor="messages-client-select">{t('messages.page.clientLabel')}</label>
         <select

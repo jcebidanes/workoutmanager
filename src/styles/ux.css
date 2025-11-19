@@ -809,6 +809,36 @@
   margin: 0.25rem 0 0;
 }
 
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.summary-card {
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 1rem;
+  padding: 1rem;
+  background: #fff;
+}
+
+.summary-card p {
+  margin-bottom: 0.25rem;
+  color: #475569;
+}
+
+.summary-card small {
+  display: block;
+  margin-top: 0.25rem;
+  color: #94a3b8;
+}
+
+.reports-table-wrapper {
+  margin-top: 1rem;
+  overflow-x: auto;
+}
+
 .client-messages__form textarea {
   border-radius: 0.85rem;
   border: 1px solid rgba(148, 163, 184, 0.6);
