@@ -11,7 +11,8 @@
     "types": ["node"],
     "typeRoots": ["./types", "./node_modules/@types"],
     "allowImportingTsExtensions": true,
-    "noEmit": true
+    "noEmit": true,
+    "isolatedModules": true
   },
   "include": [
     "server/**/*.ts",
