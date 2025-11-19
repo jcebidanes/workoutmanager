@@ -1,4 +1,12 @@
-import 'ts-node/register/esm';
+import { register } from 'ts-node';
+register({
+  transpileOnly: true,
+  compilerOptions: {
+    module: 'esnext',
+    moduleResolution: 'nodenext',
+  },
+});
+
 import knex from 'knex';
 import knexConfig from '../knexfile.js';
 

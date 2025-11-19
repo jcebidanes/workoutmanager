@@ -1,12 +1,22 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useReducer, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { fetchTemplates, fetchClients, createTemplate, createClient, assignTemplate, updateClientWorkout as updateClientWorkoutRequest } from '../api/dashboard';
+import type {
+  ClientRecord,
+  WorkoutTemplate,
+  ClientWorkout,
+  Exercise,
+  WorkoutSet,
+  TemplateFormState,
+  ClientFormState,
+  AssignmentFormState,
+} from '../types/dashboard';
 import { useI18n } from '../hooks/useI18n';
 import type { TranslationKey } from '../context/I18nContext';
 import type { Language } from '../types/language';
 import '../styles/ux.css';
-
-const API_BASE_URL = 'http://localhost:3001';
 
 const SIDE_NAV_LINKS: Array<{ id: string; labelKey: TranslationKey; descriptionKey: TranslationKey }> = [
   { id: 'dashboard', labelKey: 'nav.dashboard', descriptionKey: 'nav.dashboardDescription' },
@@ -28,45 +38,6 @@ const WEEK_DAY_IDS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 's
 type WeekDayId = typeof WEEK_DAY_IDS[number];
 const UNSCHEDULED_VALUE = 'unscheduled';
 
-interface WorkoutSet {
-  id?: number;
-  setNumber: number;
-  weight: number;
-  reps: number;
-}
-
-interface Exercise {
-  id?: number;
-  name: string;
-  muscleGroup: string;
-  difficultyLevel: string;
-  position?: number;
-  sets: WorkoutSet[];
-}
-
-interface WorkoutTemplate {
-  id: number;
-  name: string;
-  description: string;
-  exercises: Exercise[];
-}
-
-interface ClientWorkout {
-  id: number;
-  clientId: number;
-  templateId: number | null;
-  name: string;
-  description: string;
-  exercises: Exercise[];
-}
-
-interface ClientRecord {
-  id: number;
-  name: string;
-  email?: string;
-  workouts: ClientWorkout[];
-}
-
 const buildEmptySet = (setNumber: number = 1): WorkoutSet => ({
   setNumber,
   weight: 0,
@@ -80,26 +51,244 @@ const buildEmptyExercise = (): Exercise => ({
   sets: [buildEmptySet(1)],
 });
 
+const cloneClients = (records: ClientRecord[]): ClientRecord[] => records.map((client) => ({
+  ...client,
+  workouts: client.workouts.map((workout) => ({
+    ...workout,
+    exercises: workout.exercises.map((exercise) => ({
+      ...exercise,
+      sets: exercise.sets.map((set) => ({ ...set })),
+    })),
+  })),
+}));
+
+interface DashboardUIState {
+  templateForm: TemplateFormState;
+  clientForm: ClientFormState;
+  assignmentForm: AssignmentFormState;
+  quickActionsOpen: boolean;
+  sidebarOpen: boolean;
+  clientTabs: Record<number, string>;
+  workoutSchedule: Record<number, WeekDayId | typeof UNSCHEDULED_VALUE>;
+  searchTerm: string;
+}
+
+type DashboardAction =
+  | { type: 'SET_TEMPLATE_FORM'; updater: (prev: TemplateFormState) => TemplateFormState }
+  | { type: 'SET_CLIENT_FORM'; updater: (prev: ClientFormState) => ClientFormState }
+  | { type: 'SET_ASSIGNMENT_FORM'; updater: (prev: AssignmentFormState) => AssignmentFormState }
+  | { type: 'RESET_TEMPLATE_FORM' }
+  | { type: 'RESET_CLIENT_FORM' }
+  | { type: 'RESET_ASSIGNMENT_FORM' }
+  | { type: 'SET_QUICK_ACTIONS'; value: boolean }
+  | { type: 'SET_SIDEBAR'; value: boolean }
+  | { type: 'SET_CLIENT_TABS'; value: Record<number, string> }
+  | { type: 'SET_WORKOUT_SCHEDULE'; value: Record<number, WeekDayId | typeof UNSCHEDULED_VALUE> }
+  | { type: 'SET_SEARCH_TERM'; value: string };
+
+const initialTemplateForm = (): TemplateFormState => ({
+  name: '',
+  description: '',
+  exercises: [buildEmptyExercise()],
+});
+
+const initialState: DashboardUIState = {
+  templateForm: initialTemplateForm(),
+  clientForm: { name: '', email: '' },
+  assignmentForm: { clientId: '', templateId: '' },
+  quickActionsOpen: false,
+  sidebarOpen: false,
+  clientTabs: {},
+  workoutSchedule: {},
+  searchTerm: '',
+};
+
+const dashboardReducer = (state: DashboardUIState, action: DashboardAction): DashboardUIState => {
+  switch (action.type) {
+    case 'SET_TEMPLATE_FORM':
+      return { ...state, templateForm: action.updater(state.templateForm) };
+    case 'SET_CLIENT_FORM':
+      return { ...state, clientForm: action.updater(state.clientForm) };
+    case 'SET_ASSIGNMENT_FORM':
+      return { ...state, assignmentForm: action.updater(state.assignmentForm) };
+    case 'RESET_TEMPLATE_FORM':
+      return { ...state, templateForm: initialTemplateForm() };
+    case 'RESET_CLIENT_FORM':
+      return { ...state, clientForm: { name: '', email: '' } };
+    case 'RESET_ASSIGNMENT_FORM':
+      return { ...state, assignmentForm: { clientId: '', templateId: '' } };
+    case 'SET_QUICK_ACTIONS':
+      return { ...state, quickActionsOpen: action.value };
+    case 'SET_SIDEBAR':
+      return { ...state, sidebarOpen: action.value };
+    case 'SET_CLIENT_TABS':
+      return { ...state, clientTabs: action.value };
+    case 'SET_WORKOUT_SCHEDULE':
+      return { ...state, workoutSchedule: action.value };
+    case 'SET_SEARCH_TERM':
+      return { ...state, searchTerm: action.value };
+    default:
+      return state;
+  }
+};
+
 const Dashboard: React.FC = () => {
   const { user, token, logout } = useAuth();
   const { t, language, setLanguage } = useI18n();
   const navigate = useNavigate();
-  const [templates, setTemplates] = useState<WorkoutTemplate[]>([]);
   const [clients, setClients] = useState<ClientRecord[]>([]);
-  const [templateForm, setTemplateForm] = useState({
-    name: '',
-    description: '',
-    exercises: [buildEmptyExercise()],
-  });
-  const [clientForm, setClientForm] = useState({ name: '', email: '' });
-  const [assignmentForm, setAssignmentForm] = useState({ clientId: '', templateId: '' });
-  const [loading, setLoading] = useState(false);
-  const [quickActionsOpen, setQuickActionsOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [clientTabs, setClientTabs] = useState<Record<number, string>>({});
-  const [workoutSchedule, setWorkoutSchedule] = useState<Record<number, WeekDayId | typeof UNSCHEDULED_VALUE>>({});
+  const [uiState, dispatch] = useReducer(dashboardReducer, initialState);
+  const {
+    templateForm,
+    clientForm,
+    assignmentForm,
+    quickActionsOpen,
+    sidebarOpen,
+    clientTabs,
+    workoutSchedule,
+    searchTerm,
+  } = uiState;
+  const setTemplateForm = (next: TemplateFormState | ((prev: TemplateFormState) => TemplateFormState)) => {
+    const updater = typeof next === 'function'
+      ? next as (prev: TemplateFormState) => TemplateFormState
+      : () => next;
+    dispatch({ type: 'SET_TEMPLATE_FORM', updater });
+  };
 
-  const [searchTerm, setSearchTerm] = useState('');
+  const setClientForm = (next: ClientFormState | ((prev: ClientFormState) => ClientFormState)) => {
+    const updater = typeof next === 'function'
+      ? next as (prev: ClientFormState) => ClientFormState
+      : () => next;
+    dispatch({ type: 'SET_CLIENT_FORM', updater });
+  };
+
+  const setAssignmentForm = (next: AssignmentFormState | ((prev: AssignmentFormState) => AssignmentFormState)) => {
+    const updater = typeof next === 'function'
+      ? next as (prev: AssignmentFormState) => AssignmentFormState
+      : () => next;
+    dispatch({ type: 'SET_ASSIGNMENT_FORM', updater });
+  };
+
+  const setQuickActionsOpen = (next: boolean | ((prev: boolean) => boolean)) => {
+    const value = typeof next === 'function'
+      ? next(quickActionsOpen)
+      : next;
+    dispatch({ type: 'SET_QUICK_ACTIONS', value });
+  };
+
+  const setSidebarOpen = (next: boolean | ((prev: boolean) => boolean)) => {
+    const value = typeof next === 'function'
+      ? next(sidebarOpen)
+      : next;
+    dispatch({ type: 'SET_SIDEBAR', value });
+  };
+
+  const setClientTabs = (updater: (prev: Record<number, string>) => Record<number, string>) => {
+    dispatch({ type: 'SET_CLIENT_TABS', value: updater(clientTabs) });
+  };
+
+  const setWorkoutSchedule = (
+    updater: (prev: Record<number, WeekDayId | typeof UNSCHEDULED_VALUE>) => Record<number, WeekDayId | typeof UNSCHEDULED_VALUE>,
+  ) => {
+    dispatch({ type: 'SET_WORKOUT_SCHEDULE', value: updater(workoutSchedule) });
+  };
+
+  const setSearchTerm = (value: string) => {
+    dispatch({ type: 'SET_SEARCH_TERM', value });
+  };
+
+  const queryClient = useQueryClient();
+
+  const { data: templates = [], isPending: templatesPending } = useQuery<WorkoutTemplate[]>({
+    queryKey: ['templates', user?.id],
+    queryFn: () => fetchTemplates(token ?? null),
+    enabled: Boolean(user && token),
+  });
+
+  const { data: clientsData = [], isPending: clientsPending } = useQuery<ClientRecord[]>({
+    queryKey: ['clients', user?.id],
+    queryFn: () => fetchClients(token ?? null),
+    enabled: Boolean(user && token),
+  });
+
+  useEffect(() => {
+    if (clientsData) {
+      setClients(cloneClients(clientsData));
+    }
+  }, [clientsData]);
+
+  useEffect(() => {
+    const nextTabs: Record<number, string> = {};
+    clients.forEach((client) => {
+      nextTabs[client.id] = clientTabs[client.id] ?? 'overview';
+    });
+    dispatch({ type: 'SET_CLIENT_TABS', value: nextTabs });
+  }, [clients]);
+
+  useEffect(() => {
+    const nextSchedule: Record<number, WeekDayId | typeof UNSCHEDULED_VALUE> = { ...workoutSchedule };
+    clients.forEach((client) => {
+      client.workouts.forEach((workout) => {
+        if (!nextSchedule[workout.id]) {
+          nextSchedule[workout.id] = UNSCHEDULED_VALUE;
+        }
+      });
+    });
+    dispatch({ type: 'SET_WORKOUT_SCHEDULE', value: nextSchedule });
+  }, [clients]);
+
+  const templateMutation = useMutation({
+    mutationFn: (payload: TemplateFormState) => createTemplate(token ?? null, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['templates', user?.id] });
+      dispatch({ type: 'RESET_TEMPLATE_FORM' });
+    },
+    onError: (error: Error) => {
+      alert(error.message);
+    },
+  });
+
+  const clientMutation = useMutation({
+    mutationFn: (payload: ClientFormState) => createClient(token ?? null, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients', user?.id] });
+      dispatch({ type: 'RESET_CLIENT_FORM' });
+    },
+    onError: (error: Error) => {
+      alert(error.message);
+    },
+  });
+
+  const assignTemplateMutation = useMutation({
+    mutationFn: (payload: { clientId: string; templateId: number }) => assignTemplate(token ?? null, payload.clientId, payload.templateId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients', user?.id] });
+      dispatch({ type: 'RESET_ASSIGNMENT_FORM' });
+    },
+    onError: (error: Error) => {
+      alert(error.message);
+    },
+  });
+
+  const saveWorkoutMutation = useMutation({
+    mutationFn: (workout: ClientWorkout) => updateClientWorkoutRequest(token ?? null, workout),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients', user?.id] });
+    },
+    onError: (error: Error) => {
+      alert(error.message);
+    },
+  });
+
+  const isSaving = templateMutation.isPending
+    || clientMutation.isPending
+    || assignTemplateMutation.isPending
+    || saveWorkoutMutation.isPending;
+  const isLoadingData = templatesPending || clientsPending;
+  const statusMessageKey: TranslationKey | null = isSaving
+    ? 'status.saving'
+    : (isLoadingData ? 'status.loading' : null);
+
   const stats = useMemo(() => {
     const totalWorkouts = clients.reduce((count, client) => count + client.workouts.length, 0);
     const totalExercises = clients.reduce(
@@ -120,87 +309,17 @@ const Dashboard: React.FC = () => {
   const hasTemplates = templates.length > 0;
   const hasClients = clients.length > 0;
 
-  const authHeaders = useMemo<HeadersInit>(() => {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+  const filteredClients = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return clients;
     }
-    return headers;
-  }, [token]);
+    const term = searchTerm.toLowerCase();
+    return clients.filter((client) => (
+      client.name.toLowerCase().includes(term)
+      || (client.email ?? '').toLowerCase().includes(term)
+    ));
+  }, [clients, searchTerm]);
 
-  const loadTemplates = useCallback(async () => {
-    if (!user) return;
-    try {
-      const response = await fetch(`${API_BASE_URL}/templates`, {
-        headers: authHeaders,
-      });
-      if (!response.ok) {
-        throw new Error('Unable to load templates');
-      }
-      const data = await response.json();
-      setTemplates(data);
-    } catch (error) {
-      console.error(error);
-    }
-  }, [authHeaders, user]);
-
-  const loadClients = useCallback(async () => {
-    if (!user) return;
-    try {
-      const response = await fetch(`${API_BASE_URL}/clients`, {
-        headers: authHeaders,
-      });
-      if (!response.ok) {
-        throw new Error('Unable to load clients');
-      }
-      const data = await response.json();
-      setClients(data);
-    } catch (error) {
-      console.error(error);
-    }
-  }, [authHeaders, user]);
-
-  useEffect(() => {
-    if (!user) {
-      return;
-    }
-    const fetchData = async () => {
-      await Promise.all([loadTemplates(), loadClients()]);
-    };
-    fetchData();
-  }, [loadClients, loadTemplates, user]);
-
-  useEffect(() => {
-    setClientTabs((prev) => {
-      const next = { ...prev };
-      let changed = false;
-      clients.forEach((client) => {
-        if (!next[client.id]) {
-          next[client.id] = 'overview';
-          changed = true;
-        }
-      });
-      return changed ? next : prev;
-    });
-  }, [clients]);
-
-  useEffect(() => {
-    setWorkoutSchedule((prev) => {
-      const next: Record<number, WeekDayId | typeof UNSCHEDULED_VALUE> = { ...prev };
-      let changed = false;
-      clients.forEach((client) => {
-        client.workouts.forEach((workout) => {
-          if (!next[workout.id]) {
-            next[workout.id] = UNSCHEDULED_VALUE;
-            changed = true;
-          }
-        });
-      });
-      return changed ? next : prev;
-    });
-  }, [clients]);
 
   const handleLogout = () => {
     logout();
@@ -277,88 +396,30 @@ const Dashboard: React.FC = () => {
     });
   };
 
-  const handleTemplateSubmit = async (event: React.FormEvent) => {
+  const handleTemplateSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     if (!user) return;
-    setLoading(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/templates`, {
-        method: 'POST',
-        headers: authHeaders,
-        body: JSON.stringify(templateForm),
-      });
-      if (!response.ok) {
-        const error = await response.json().catch(() => null);
-        throw new Error(error?.error ?? 'Failed to create template');
-      }
-      setTemplateForm({
-        name: '',
-        description: '',
-        exercises: [buildEmptyExercise()],
-      });
-      await loadTemplates();
-    } catch (error) {
-      console.error(error);
-      alert((error as Error).message);
-    } finally {
-      setLoading(false);
-    }
+    templateMutation.mutate(templateForm);
   };
 
-  const handleClientSubmit = async (event: React.FormEvent) => {
+  const handleClientSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     if (!user || !clientForm.name) return;
-    setLoading(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/clients`, {
-        method: 'POST',
-        headers: authHeaders,
-        body: JSON.stringify(clientForm),
-      });
-      if (!response.ok) {
-        const error = await response.json().catch(() => null);
-        throw new Error(error?.error ?? 'Failed to create client');
-      }
-      setClientForm({ name: '', email: '' });
-      await loadClients();
-    } catch (error) {
-      console.error(error);
-      alert((error as Error).message);
-    } finally {
-      setLoading(false);
-    }
+    clientMutation.mutate(clientForm);
   };
 
-  const handleAssignmentSubmit = async (event: React.FormEvent) => {
+  const handleAssignmentSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     if (!user || !assignmentForm.clientId || !assignmentForm.templateId) {
       return;
     }
-    setLoading(true);
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/clients/${assignmentForm.clientId}/assign-template`,
-        {
-          method: 'POST',
-          headers: authHeaders,
-          body: JSON.stringify({ templateId: Number(assignmentForm.templateId) }),
-        },
-      );
-      if (!response.ok) {
-        const error = await response.json().catch(() => null);
-        throw new Error(error?.error ?? 'Failed to assign template');
-      }
-      setAssignmentForm({ clientId: '', templateId: '' });
-      await loadClients();
-    } catch (error) {
-      console.error(error);
-      alert((error as Error).message);
-    } finally {
-      setLoading(false);
-    }
+    assignTemplateMutation.mutate({
+      clientId: assignmentForm.clientId,
+      templateId: Number(assignmentForm.templateId),
+    });
   };
 
-  const updateClientWorkout = (
+  const updateClientWorkoutDraft = (
     clientId: number,
     workoutId: number,
     updater: (workout: ClientWorkout) => ClientWorkout,
@@ -384,7 +445,7 @@ const Dashboard: React.FC = () => {
     field: 'setNumber' | 'weight' | 'reps',
     value: string,
   ) => {
-    updateClientWorkout(clientId, workoutId, (workout) => {
+    updateClientWorkoutDraft(clientId, workoutId, (workout) => {
       const exercises = workout.exercises.map((exercise, idx) => {
         if (idx !== exerciseIndex) {
           return exercise;
@@ -405,7 +466,7 @@ const Dashboard: React.FC = () => {
     field: keyof Exercise,
     value: string,
   ) => {
-    updateClientWorkout(clientId, workoutId, (workout) => {
+    updateClientWorkoutDraft(clientId, workoutId, (workout) => {
       const exercises = workout.exercises.map((exercise, idx) => (
         idx === exerciseIndex ? { ...exercise, [field]: value } : exercise
       ));
@@ -419,21 +480,21 @@ const Dashboard: React.FC = () => {
     field: 'name' | 'description',
     value: string,
   ) => {
-    updateClientWorkout(clientId, workoutId, (workout) => ({
+    updateClientWorkoutDraft(clientId, workoutId, (workout) => ({
       ...workout,
       [field]: value,
     }));
   };
 
   const addClientExercise = (clientId: number, workoutId: number) => {
-    updateClientWorkout(clientId, workoutId, (workout) => ({
+    updateClientWorkoutDraft(clientId, workoutId, (workout) => ({
       ...workout,
       exercises: [...workout.exercises, buildEmptyExercise()],
     }));
   };
 
   const addClientExerciseSet = (clientId: number, workoutId: number, exerciseIndex: number) => {
-    updateClientWorkout(clientId, workoutId, (workout) => {
+    updateClientWorkoutDraft(clientId, workoutId, (workout) => {
       const exercises = workout.exercises.map((exercise, idx) => {
         if (idx !== exerciseIndex) {
           return exercise;
@@ -447,30 +508,9 @@ const Dashboard: React.FC = () => {
     });
   };
 
-  const handleSaveClientWorkout = async (workout: ClientWorkout) => {
+  const handleSaveClientWorkout = (workout: ClientWorkout) => {
     if (!user) return;
-    setLoading(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/client-workouts/${workout.id}`, {
-        method: 'PUT',
-        headers: authHeaders,
-        body: JSON.stringify({
-          name: workout.name,
-          description: workout.description,
-          exercises: workout.exercises,
-        }),
-      });
-      if (!response.ok) {
-        const error = await response.json().catch(() => null);
-        throw new Error(error?.error ?? 'Failed to update workout');
-      }
-      await loadClients();
-    } catch (error) {
-      console.error(error);
-      alert((error as Error).message);
-    } finally {
-      setLoading(false);
-    }
+    saveWorkoutMutation.mutate(workout);
   };
 
   const calendarData = useMemo(() => (
@@ -598,10 +638,10 @@ const Dashboard: React.FC = () => {
         </header>
 
         <main className="dashboard">
-          {loading && (
+          {statusMessageKey && (
             <div className="dashboard__status" role="status" aria-live="polite">
               <span className="dashboard__spinner" aria-hidden="true" />
-              <span>{t('status.saving')}</span>
+              <span>{t(statusMessageKey)}</span>
             </div>
           )}
 
@@ -772,7 +812,7 @@ const Dashboard: React.FC = () => {
                   <button type="button" className="button button--subtle" onClick={addExercise}>
                     {t('templates.addExercise')}
                   </button>
-                  <button type="submit" className="button button--primary" disabled={loading}>
+                  <button type="submit" className="button button--primary" disabled={isSaving}>
                     {t('templates.save')}
                   </button>
                 </div>
@@ -809,7 +849,7 @@ const Dashboard: React.FC = () => {
                     />
                   </div>
                   <div className="form__actions">
-                    <button type="submit" className="button button--primary" disabled={loading}>
+                    <button type="submit" className="button button--primary" disabled={isSaving}>
                       {t('clients.add')}
                     </button>
                   </div>
@@ -863,7 +903,7 @@ const Dashboard: React.FC = () => {
                     <button
                       type="submit"
                       className="button button--primary"
-                      disabled={loading || !hasClients || !hasTemplates}
+                      disabled={isSaving || !hasClients || !hasTemplates}
                     >
                       {t('assignment.submit')}
                     </button>
@@ -887,7 +927,7 @@ const Dashboard: React.FC = () => {
                 <p>{t('coaching.addClientPrompt')}</p>
               </div>
             )}
-            {clients.map((client) => {
+            {filteredClients.map((client) => {
               const activeTab = clientTabs[client.id] ?? 'overview';
               return (
                 <article className="client-card" key={client.id}>
@@ -1071,12 +1111,12 @@ const Dashboard: React.FC = () => {
                             >
                               {t('workout.addExercise')}
                             </button>
-                            <button
-                              type="button"
-                              className="button button--primary"
-                              onClick={() => handleSaveClientWorkout(workout)}
-                              disabled={loading}
-                            >
+                      <button
+                        type="button"
+                        className="button button--primary"
+                        onClick={() => handleSaveClientWorkout(workout)}
+                        disabled={isSaving}
+                      >
                               {t('workout.save')}
                             </button>
                           </div>
@@ -1138,7 +1178,7 @@ const Dashboard: React.FC = () => {
                 role="menuitem"
                 onClick={() => {
                   setQuickActionsOpen(false);
-                  setTemplateForm({ name: '', description: '', exercises: [buildEmptyExercise()] });
+                  dispatch({ type: 'RESET_TEMPLATE_FORM' });
                 }}
               >
                 {t('fab.newTemplate')}
@@ -1148,7 +1188,7 @@ const Dashboard: React.FC = () => {
                 role="menuitem"
                 onClick={() => {
                   setQuickActionsOpen(false);
-                  setClientForm({ name: '', email: '' });
+                  dispatch({ type: 'RESET_CLIENT_FORM' });
                 }}
               >
                 {t('fab.newClient')}
