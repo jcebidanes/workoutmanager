@@ -31,7 +31,7 @@ const Register: React.FC = () => {
     setLoading(true);
     try {
       await register(username, password, language);
-      navigate('/login');
+      navigate('/dashboard');
     } catch (err) {
       const message = err instanceof Error ? err.message : t('auth.errors.generic');
       setError(message);

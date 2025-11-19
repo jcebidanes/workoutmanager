@@ -23,3 +23,15 @@ dist-ssr
 *.sln
 *.sw?
 *.sqlite3
+tsconfig.*.tsbuildinfo
+
+# TypeScript build outputs inside source tree
+db/**/*.js
+db/**/*.d.ts
+server/**/*.js
+server/**/*.d.ts
+src/**/*.js
+src/**/*.d.ts
+
+# Secrets and environment variables
+.env

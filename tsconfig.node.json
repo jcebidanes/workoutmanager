@@ -1,26 +1,26 @@
 {
   "compilerOptions": {
-    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
+    "composite": true,
+    "skipLibCheck": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
     "target": "ES2023",
     "lib": ["ES2023"],
-    "module": "ESNext",
     "types": ["node"],
-    "skipLibCheck": true,
-
-    /* Bundler mode */
-    "moduleResolution": "bundler",
+    "typeRoots": ["./types", "./node_modules/@types"],
     "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true,
-    "moduleDetection": "force",
-    "noEmit": true,
-
-    /* Linting */
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "erasableSyntaxOnly": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
+    "noEmit": true
   },
-  "include": ["vite.config.ts"]
+  "include": [
+    "server/**/*.ts",
+    "server/types/**/*.d.ts",
+    "types/**/*.d.ts",
+    "db/**/*.ts",
+    "src/types/**/*.ts",
+    "src/utils/**/*.ts",
+    "knexfile.js",
+    "scripts/devMigrate.js"
+  ]
 }

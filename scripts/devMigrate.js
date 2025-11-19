@@ -1,3 +1,4 @@
+import 'ts-node/register/esm';
 import knex from 'knex';
 import knexConfig from '../knexfile.js';
 

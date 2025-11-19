@@ -6,6 +6,7 @@ const config = {
     },
     migrations: {
       directory: './db/migrations',
+      loadExtensions: ['.ts'],
     },
     useNullAsDefault: true,
     pool: {

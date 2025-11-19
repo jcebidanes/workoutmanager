@@ -308,7 +308,7 @@ const I18nContext = createContext<I18nContextValue | undefined>(undefined);
 const API_BASE_URL = 'http://localhost:3001';
 
 export const I18nProvider = ({ children }: { children: ReactNode }) => {
-  const { user, updateUserLanguage } = useAuth();
+  const { user, token, updateUserLanguage } = useAuth();
   const [language, setLanguageState] = useState<Language>(() => {
     if (user?.language && isLanguage(user.language)) {
       return user.language;
@@ -346,13 +346,13 @@ export const I18nProvider = ({ children }: { children: ReactNode }) => {
     setLanguageState(nextLanguage);
     localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLanguage);
 
-    if (user) {
+    if (user && token) {
       try {
         await fetch(`${API_BASE_URL}/users/preferences`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            'x-user-id': String(user.id),
+            'Authorization': `Bearer ${token}`,
           },
           body: JSON.stringify({ language: nextLanguage }),
         });

@@ -81,7 +81,7 @@ const buildEmptyExercise = (): Exercise => ({
 });
 
 const Dashboard: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const { t, language, setLanguage } = useI18n();
   const navigate = useNavigate();
   const [templates, setTemplates] = useState<WorkoutTemplate[]>([]);
@@ -124,11 +124,11 @@ const Dashboard: React.FC = () => {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
-    if (user) {
-      headers['x-user-id'] = String(user.id);
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
     return headers;
-  }, [user]);
+  }, [token]);
 
   const loadTemplates = useCallback(async () => {
     if (!user) return;
@@ -473,6 +473,23 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const calendarData = useMemo(() => (
+    WEEK_DAY_IDS.map((dayId) => {
+      const dayKey = `calendar.days.${dayId}` as TranslationKey;
+      const items = clients.flatMap((client) => client.workouts
+        .filter((workout) => workoutSchedule[workout.id] === dayId)
+        .map((workout) => ({
+          client: client.name,
+          workout,
+        })));
+      return {
+        dayId,
+        dayLabel: t(dayKey),
+        items,
+      };
+    })
+  ), [clients, workoutSchedule, t]);
+
   if (!user) {
     return (
       <div>
@@ -495,23 +512,6 @@ const Dashboard: React.FC = () => {
   ) => {
     setWorkoutSchedule((prev) => ({ ...prev, [workoutId]: day }));
   };
-
-  const calendarData = useMemo(() => (
-    WEEK_DAY_IDS.map((dayId) => {
-      const dayKey = `calendar.days.${dayId}` as TranslationKey;
-      const items = clients.flatMap((client) => client.workouts
-        .filter((workout) => workoutSchedule[workout.id] === dayId)
-        .map((workout) => ({
-          client: client.name,
-          workout,
-        })));
-      return {
-        dayId,
-        dayLabel: t(dayKey),
-        items,
-      };
-    })
-  ), [clients, workoutSchedule, t]);
 
   return (
     <div className="app-shell">
