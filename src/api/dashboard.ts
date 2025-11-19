@@ -4,6 +4,8 @@ import type {
   ClientWorkout,
   TemplateFormState,
   ClientFormState,
+  ClientMessage,
+  ClientMetric,
 } from '../types/dashboard';
 
 const API_BASE_URL = 'http://localhost:3001';
@@ -61,3 +63,35 @@ export const updateClientWorkout = (token: string | null, workout: ClientWorkout
     exercises: workout.exercises,
   }),
 });
+
+export const fetchClientMessages = (token: string | null, clientId: number) => request<ClientMessage[]>(
+  `/clients/${clientId}/messages`,
+  token,
+);
+
+export const createClientMessage = (token: string | null, clientId: number, content: string) => request<ClientMessage>(
+  `/clients/${clientId}/messages`,
+  token,
+  {
+    method: 'POST',
+    body: JSON.stringify({ content }),
+  },
+);
+
+export const fetchClientMetrics = (token: string | null, clientId: number) => request<ClientMetric[]>(
+  `/clients/${clientId}/metrics`,
+  token,
+);
+
+export const createClientMetric = (
+  token: string | null,
+  clientId: number,
+  payload: { name: string; value: number; unit?: string; recordedAt?: string },
+) => request<ClientMetric>(
+  `/clients/${clientId}/metrics`,
+  token,
+  {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  },
+);

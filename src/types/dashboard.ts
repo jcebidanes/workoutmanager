@@ -55,3 +55,20 @@ export interface AssignmentFormState {
   clientId: string;
   templateId: string;
 }
+
+export interface ClientMessage {
+  id: number;
+  clientId: number;
+  content: string;
+  createdAt: string;
+}
+
+export interface ClientMetric {
+  id: number;
+  clientId: number;
+  name: string;
+  value: number;
+  unit?: string | null;
+  recordedAt: string;
+  createdAt: string;
+}

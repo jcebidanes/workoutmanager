@@ -11,6 +11,11 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/clients" element={<Dashboard />} />
+        <Route path="/plans" element={<Dashboard />} />
+        <Route path="/library" element={<Dashboard />} />
+        <Route path="/messages" element={<Dashboard />} />
+        <Route path="/reports" element={<Dashboard />} />
         <Route path="/" element={<Login />} /> {/* Default route */}
       </Routes>
     </BrowserRouter>

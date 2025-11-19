@@ -1,8 +1,21 @@
-import React, { useEffect, useMemo, useReducer, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, {
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchTemplates, fetchClients, createTemplate, createClient, assignTemplate, updateClientWorkout as updateClientWorkoutRequest } from '../api/dashboard';
+import {
+  fetchTemplates,
+  fetchClients,
+  createTemplate,
+  createClient,
+  assignTemplate,
+  updateClientWorkout as updateClientWorkoutRequest,
+} from '../api/dashboard';
 import type {
   ClientRecord,
   WorkoutTemplate,
@@ -16,15 +29,21 @@ import type {
 import { useI18n } from '../hooks/useI18n';
 import type { TranslationKey } from '../context/I18nContext';
 import type { Language } from '../types/language';
+import ClientMessages from '../components/ClientMessages';
+import ClientMetrics from '../components/ClientMetrics';
+import PlansSection from '../sections/PlansSection';
+import LibrarySection from '../sections/LibrarySection';
+import MessagesSection from '../sections/MessagesSection';
+import ReportsSection from '../sections/ReportsSection';
 import '../styles/ux.css';
 
-const SIDE_NAV_LINKS: Array<{ id: string; labelKey: TranslationKey; descriptionKey: TranslationKey }> = [
-  { id: 'dashboard', labelKey: 'nav.dashboard', descriptionKey: 'nav.dashboardDescription' },
-  { id: 'clients', labelKey: 'nav.clients', descriptionKey: 'nav.clientsDescription' },
-  { id: 'plans', labelKey: 'nav.plans', descriptionKey: 'nav.plansDescription' },
-  { id: 'library', labelKey: 'nav.library', descriptionKey: 'nav.libraryDescription' },
-  { id: 'messages', labelKey: 'nav.messages', descriptionKey: 'nav.messagesDescription' },
-  { id: 'reports', labelKey: 'nav.reports', descriptionKey: 'nav.reportsDescription' },
+const SIDE_NAV_LINKS: Array<{ id: string; path: string; labelKey: TranslationKey; descriptionKey: TranslationKey }> = [
+  { id: 'dashboard', path: '/dashboard', labelKey: 'nav.dashboard', descriptionKey: 'nav.dashboardDescription' },
+  { id: 'clients', path: '/clients', labelKey: 'nav.clients', descriptionKey: 'nav.clientsDescription' },
+  { id: 'plans', path: '/plans', labelKey: 'nav.plans', descriptionKey: 'nav.plansDescription' },
+  { id: 'library', path: '/library', labelKey: 'nav.library', descriptionKey: 'nav.libraryDescription' },
+  { id: 'messages', path: '/messages', labelKey: 'nav.messages', descriptionKey: 'nav.messagesDescription' },
+  { id: 'reports', path: '/reports', labelKey: 'nav.reports', descriptionKey: 'nav.reportsDescription' },
 ] as const;
 
 const CLIENT_TABS: Array<{ id: string; labelKey: TranslationKey }> = [
@@ -136,7 +155,9 @@ const Dashboard: React.FC = () => {
   const { user, token, logout } = useAuth();
   const { t, language, setLanguage } = useI18n();
   const navigate = useNavigate();
+  const location = useLocation();
   const [clients, setClients] = useState<ClientRecord[]>([]);
+  const clientsSectionRef = useRef<HTMLDivElement | null>(null);
   const [uiState, dispatch] = useReducer(dashboardReducer, initialState);
   const {
     templateForm,
@@ -197,6 +218,13 @@ const Dashboard: React.FC = () => {
     dispatch({ type: 'SET_SEARCH_TERM', value });
   };
 
+  const currentSection = useMemo(() => {
+    const match = SIDE_NAV_LINKS.find((link) => link.path === location.pathname);
+    return match?.id ?? 'dashboard';
+  }, [location.pathname]);
+
+  const isMainSection = currentSection === 'dashboard' || currentSection === 'clients';
+
   const queryClient = useQueryClient();
 
   const { data: templates = [], isPending: templatesPending } = useQuery<WorkoutTemplate[]>({
@@ -236,6 +264,12 @@ const Dashboard: React.FC = () => {
     });
     dispatch({ type: 'SET_WORKOUT_SCHEDULE', value: nextSchedule });
   }, [clients]);
+
+  useEffect(() => {
+    if (currentSection === 'clients' && clientsSectionRef.current) {
+      clientsSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [currentSection]);
 
   const templateMutation = useMutation({
     mutationFn: (payload: TemplateFormState) => createTemplate(token ?? null, payload),
@@ -562,8 +596,11 @@ const Dashboard: React.FC = () => {
             <button
               key={item.id}
               type="button"
-              className={`sidebar__link ${item.id === 'dashboard' ? 'sidebar__link--active' : ''}`}
-              onClick={() => setSidebarOpen(false)}
+              className={`sidebar__link ${currentSection === item.id ? 'sidebar__link--active' : ''}`}
+              onClick={() => {
+                navigate(item.path);
+                setSidebarOpen(false);
+              }}
             >
               <span>{t(item.labelKey)}</span>
               <span className="sidebar__hint">{t(item.descriptionKey)}</span>
@@ -645,6 +682,8 @@ const Dashboard: React.FC = () => {
             </div>
           )}
 
+          {isMainSection ? (
+            <>
           <section className="dashboard__hero">
             <div>
               <h2>{t('dashboard.heroTitle')}</h2>
@@ -913,7 +952,7 @@ const Dashboard: React.FC = () => {
             </section>
           </div>
 
-          <section className="panel panel--list">
+              <section className="panel panel--list" ref={clientsSectionRef}>
             <div className="panel__header">
               <div>
                 <p className="panel__eyebrow">{t('coaching.eyebrow')}</p>
@@ -1125,16 +1164,10 @@ const Dashboard: React.FC = () => {
                     </>
                   )}
                   {activeTab === 'messages' && (
-                    <div className="client-placeholder" role="tabpanel">
-                      <p>{t('client.messages.emptyLine1')}</p>
-                      <p>{t('client.messages.emptyLine2')}</p>
-                    </div>
+                    <ClientMessages clientId={client.id} />
                   )}
                   {activeTab === 'metrics' && (
-                    <div className="client-placeholder" role="tabpanel">
-                      <p>{t('client.metrics.emptyLine1')}</p>
-                      <p>{t('client.metrics.emptyLine2')}</p>
-                    </div>
+                    <ClientMetrics clientId={client.id} />
                   )}
                 </article>
               );
@@ -1204,6 +1237,16 @@ const Dashboard: React.FC = () => {
                 {t('fab.logProgress')}
               </button>
             </div>
+          )}
+            </>
+          ) : currentSection === 'plans' ? (
+            <PlansSection templates={templates} isLoading={templatesPending} />
+          ) : currentSection === 'library' ? (
+            <LibrarySection templates={templates} clients={clients} />
+          ) : currentSection === 'messages' ? (
+            <MessagesSection clients={clients} />
+          ) : (
+            <ReportsSection clients={clients} />
           )}
         </main>
       </div>
