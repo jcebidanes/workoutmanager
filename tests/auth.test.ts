@@ -1,6 +1,5 @@
 import request from 'supertest';
 import app from '../server/server.ts';
-import './setup.ts';
 
 describe('Auth routes', () => {
   const credentials = { username: 'coach', password: 'super-secret' };

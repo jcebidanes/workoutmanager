@@ -1,13 +1,9 @@
 import type { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET;
+import { appConfig } from '../../config/env.ts';
 
 export const requireAuth = (req: Request, res: Response, next: NextFunction) => {
-  if (!JWT_SECRET) {
-    console.error('JWT_SECRET is not set in the environment variables');
-    return res.status(500).json({ error: 'Internal server error' });
-  }
+  const secret = appConfig.jwtSecret;
 
   const authHeader = req.headers.authorization;
   if (!authHeader) {
@@ -20,7 +16,7 @@ export const requireAuth = (req: Request, res: Response, next: NextFunction) => 
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: number };
+    const decoded = jwt.verify(token, secret) as { userId: number };
     req.userId = decoded.userId;
     return next();
   } catch (error) {
