@@ -5,9 +5,10 @@ import knex from '../../db/db.ts';
 import { hashPassword, comparePassword } from '../../src/utils/hashPassword.ts';
 import type { Language } from '../../src/types/language.ts';
 import { isLanguage, DEFAULT_LANGUAGE } from '../../src/types/language.ts';
+import { appConfig } from '../../config/env.ts';
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET as string;
+const { jwtSecret } = appConfig;
 
 router.post('/register', async (req: Request, res: Response) => {
   const { username, password, language } = req.body;
@@ -25,7 +26,7 @@ router.post('/register', async (req: Request, res: Response) => {
     const hashedPassword = await hashPassword(password);
     const [userId] = await knex('users').insert({ username, password: hashedPassword, language: normalizedLanguage });
 
-    const token = jwt.sign({ userId }, JWT_SECRET, { expiresIn: '1d' });
+    const token = jwt.sign({ userId }, jwtSecret, { expiresIn: '1d' });
 
     return res.status(201).json({
       message: 'User registered successfully',
@@ -47,7 +48,7 @@ router.post('/login', async (req: Request, res: Response) => {
   try {
     const user = await knex('users').where({ username }).first();
     if (user && await comparePassword(password, user.password)) {
-      const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '1d' });
+      const token = jwt.sign({ userId: user.id }, jwtSecret, { expiresIn: '1d' });
       return res.json({
         message: 'Login successful',
         user: { id: user.id, username: user.username, language: isLanguage(user.language) ? user.language : DEFAULT_LANGUAGE },

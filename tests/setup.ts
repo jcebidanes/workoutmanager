@@ -1,9 +1,6 @@
 import { afterAll, beforeAll, beforeEach } from '@jest/globals';
 import knex from '../db/db.ts';
 
-process.env.NODE_ENV = 'test';
-process.env.JWT_SECRET = process.env.JWT_SECRET ?? 'test-secret';
-
 const tablesInDeleteOrder = [
   'client_sets',
   'client_exercises',
