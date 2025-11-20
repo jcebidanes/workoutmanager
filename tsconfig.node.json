@@ -21,6 +21,7 @@
     "db/**/*.ts",
     "src/types/**/*.ts",
     "src/utils/**/*.ts",
+    "config/**/*.ts",
     "knexfile.js",
     "scripts/devMigrate.js"
   ]

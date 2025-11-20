@@ -1,7 +1,6 @@
 import request from 'supertest';
 import knex from '../db/db.ts';
 import app from '../server/server.ts';
-import './setup.ts';
 import { registerTestUser } from './helpers.ts';
 
 const seedClient = async (userId: number) => {
